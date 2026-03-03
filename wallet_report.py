@@ -157,7 +157,7 @@ def main():
     order = ["BTC","ETH","SOL","LTC","XRP","XLM","USDT","USDC","DAI","BCH","DOGE"]
     lines = [f"{t} {results[t]:,.4f}" for t in order]
 
-    msg = "*Hot wallet update*\n```" + "\n".join(lines) + "```"
+    msg = "*Hot wallet balances*\n```" + "\n".join(lines) + "```"
     post_to_slack(msg)
 
 if __name__ == "__main__":
