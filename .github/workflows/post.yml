@@ -1,6 +1,8 @@
 name: Post Wallet Balances to Slack
 
 on:
+  schedule:
+    - cron: "0 */3 * * *"
   workflow_dispatch:
 
 jobs:
@@ -18,6 +20,42 @@ jobs:
 
       - name: Install dependencies
         run: pip install requests
+
+      # Prevent duplicates: if a successful run happened in last 3 hours, exit early.
+      - name: Skip if already succeeded recently
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os, json, datetime, urllib.request
+
+          owner, repo = os.environ["GITHUB_REPOSITORY"].split("/")
+          workflow_file = "post.yml"  # this workflow filename
+          now = datetime.datetime.utcnow()
+          since = now - datetime.timedelta(hours=3)
+
+          url = f"https://api.github.com/repos/{owner}/{repo}/actions/workflows/{workflow_file}/runs?status=success&per_page=20"
+          req = urllib.request.Request(
+              url,
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "User-Agent": "hot-wallet-bot",
+              },
+          )
+
+          data = json.loads(urllib.request.urlopen(req).read().decode("utf-8"))
+          runs = data.get("workflow_runs", [])
+
+          # If ANY successful run exists in the last 3 hours, skip to avoid double posting.
+          for r in runs:
+              created = datetime.datetime.strptime(r["created_at"], "%Y-%m-%dT%H:%M:%SZ")
+              if created >= since:
+                  print("Recent successful run found (last 3h). Skipping to avoid duplicate Slack post.")
+                  raise SystemExit(0)
+
+          print("No successful run in last 3h. Proceeding.")
+          PY
 
       - name: Run wallet report
         run: python wallet_report.py
