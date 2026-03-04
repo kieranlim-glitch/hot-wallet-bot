@@ -1,33 +1,19 @@
 name: Post Wallet Balances to Slack
-# refresh scheduler
+
 on:
   schedule:
-    - cron: "*/15 * * * *"   # every 15 minutes (refresh)
+    - cron: "0 */3 * * *"
   workflow_dispatch:
-
-permissions:
-  contents: write   # allow workflow to commit last_post.txt
 
 jobs:
   run:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - run: pip install requests
-
       - run: python wallet_report.py
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-
-      # If wallet_report.py created/updated last_post.txt, commit it back
-      - name: Commit last_post timestamp
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add last_post.txt || true
-          git diff --cached --quiet || (git commit -m "Update last post time" && git push)
