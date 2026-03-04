@@ -1,8 +1,6 @@
 name: Post Wallet Balances to Slack
 
 on:
-  schedule:
-    - cron: "0 */3 * * *"
   workflow_dispatch:
 
 jobs:
