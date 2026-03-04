@@ -2,7 +2,7 @@ name: Post Wallet Balances to Slack
 
 on:
   schedule:
-    - cron: "*/15 * * * *"   # every 15 minutes
+    - cron: "*/15 * * * *"   # every 15 minutes (refresh)
   workflow_dispatch:
 
 permissions:
