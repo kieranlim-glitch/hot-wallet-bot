@@ -1,3 +1,14 @@
+- name: Check webhook env
+  run: |
+    if [ -z "${SLACK_WEBHOOK_URL}" ]; then
+      echo "SLACK_WEBHOOK_URL is MISSING"
+      exit 1
+    else
+      echo "SLACK_WEBHOOK_URL is present"
+    fi
+  env:
+    SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    
 name: Post Wallet Balances to Slack
 
 on:
