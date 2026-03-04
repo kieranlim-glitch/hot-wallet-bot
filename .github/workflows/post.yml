@@ -1,8 +1,6 @@
-name: Post Wallet Balances to Slack
+name: Slack Test
 
 on:
-  schedule:
-    - cron: "0 */3 * * *"
   workflow_dispatch:
 
 jobs:
@@ -10,31 +8,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Install dependencies
-        run: pip install requests
-
-      - name: Check webhook env
+      - run: pip install requests
+      - run: python wallet_report.py
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: |
-          if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-            echo "SLACK_WEBHOOK_URL is MISSING"
-            exit 1
-          else
-            echo "SLACK_WEBHOOK_URL is present"
-          fi
-
-      - name: Debug files
-        run: |
-          pwd
-          ls -la
-
-      - name: Run wallet report
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: python wallet_report.py
