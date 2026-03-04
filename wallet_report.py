@@ -1,6 +1,10 @@
 import os
 import time
 import requests
+from datetime import datetime, timezone
+
+LAST_POST_FILE = "last_post.txt"
+POST_EVERY_SECONDS = 3 * 60 * 60
 
 SLACK_WEBHOOK_URL = os.environ["SLACK_WEBHOOK_URL"]
 
@@ -131,9 +135,30 @@ ERC20 = {
     "USDC": {"contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "decimals": 6},
     "DAI":  {"contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "decimals": 18},
 }
+def should_post_now():
+    if not os.path.exists(LAST_POST_FILE):
+        return True
 
+    with open(LAST_POST_FILE, "r") as f:
+        s = f.read().strip()
+
+    if not s:
+        return True
+
+    last = datetime.fromisoformat(s)
+    now = datetime.now(timezone.utc)
+    return (now - last).total_seconds() >= POST_EVERY_SECONDS
+
+
+def write_last_post_time():
+    now = datetime.now(timezone.utc).isoformat()
+    with open(LAST_POST_FILE, "w") as f:
+        f.write(now)
 # ================= Main =================
 def main():
+    if not should_post_now():
+        return
+
     results = {}
 
     def safe_run(symbol, fn):
@@ -159,6 +184,7 @@ def main():
 
     msg = "*Hot wallet balances*\n```" + "\n".join(lines) + "```"
     post_to_slack(msg)
+    write_last_post_time()
 
 if __name__ == "__main__":
     main()
