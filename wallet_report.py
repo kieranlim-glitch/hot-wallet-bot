@@ -14,6 +14,8 @@ SATOSHI_PER_BTC = 100_000_000
 # ================= Slack =================
 def post_to_slack(text: str):
     r = requests.post(SLACK_WEBHOOK_URL, json={"text": text}, timeout=20)
+    print("Slack status:", r.status_code)
+    print("Slack response:", r.text)
     r.raise_for_status()
 
 # ================= Helpers =================
