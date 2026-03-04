@@ -1,5 +1,5 @@
 name: Post Wallet Balances to Slack
-# refresh cron
+# refresh scheduler
 on:
   schedule:
     - cron: "*/15 * * * *"   # every 15 minutes (refresh)
