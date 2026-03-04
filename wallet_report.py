@@ -1,3 +1,14 @@
+print("wallet_report.py started")
+
+import os, sys, requests
+
+webhook = os.getenv("SLACK_WEBHOOK_URL")
+print("Has webhook:", bool(webhook))
+
+if not webhook:
+    print("ERROR: SLACK_WEBHOOK_URL not found")
+    sys.exit(1)
+
 import os
 import time
 import requests
