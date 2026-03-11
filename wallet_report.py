@@ -214,7 +214,7 @@ ADDR = {
     "BCH": "bitcoincash:qrhzxk90l59ryl08sxcsxjnrg8j6awsxq5xnwhvp44",
     "XRP": "r4ep6pSY9JhMhLHGFb5GtVabzS1KvihiZP",
     "XLM": "GBFVU7QY6EMTYSF3WKH54CO5CE46BC72HOKZBBXH5YBJBLDVT3RNSNM2",
-    "TRX_USDT": "TTEkaSQfTDQbDcTVpDCTTFiW5MSFEfQgXA",
+    
 }
 
 ERC20 = {
@@ -223,18 +223,6 @@ ERC20 = {
     "DAI": {"contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "decimals": 18},
 }
 
-SPL = {
-    "USDC(SOL)": {
-        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-    }
-}
-
-TRC20 = {
-    "USDT(TRC)": {
-        "contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
-        "decimals": 6
-    }
-}
 
 # ================= Main =================
 def main():
@@ -252,15 +240,6 @@ def main():
     safe_run("LTC", lambda: get_blockcypher_balance("ltc", ADDR["LTC"]))
     safe_run("XRP", lambda: get_xrp_balance(ADDR["XRP"]))
     safe_run("XLM", lambda: get_xlm_balance(ADDR["XLM"]))
-    safe_run("USDT(TRC)", lambda: get_trc20_balance(
-        ADDR["TRX_USDT"],
-        TRC20["USDT(TRC)"]["contract"],
-        TRC20["USDT(TRC)"]["decimals"]
-    ))
-    safe_run("USDC(SOL)", lambda: get_spl_token_balance(
-        ADDR["SOL"],
-        SPL["USDC(SOL)"]["mint"]
-    ))
     safe_run("BCH", lambda: get_bch_balance(ADDR["BCH"]))
     safe_run("DOGE", lambda: get_blockcypher_balance("doge", ADDR["DOGE"]))
 
@@ -275,9 +254,7 @@ def main():
         "XRP",
         "XLM",
         "USDT(ERC)",
-        "USDT(TRC)",
         "USDC(ERC)",
-        "USDC(SOL)",
         "DAI",
         "BCH",
         "DOGE"
