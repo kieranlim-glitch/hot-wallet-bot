@@ -62,7 +62,7 @@ def get_eth_balance(address: str) -> float:
     return int(bal_hex, 16) / 1e18
 
 def get_erc20_balance(address: str, contract: str, decimals: int) -> float:
-    selector = "0x70a08231"  # balanceOf(address)
+    selector = "0x70a08231"
     padded_addr = address.lower().replace("0x", "").rjust(64, "0")
     data = selector + padded_addr
     res = eth_rpc_call("eth_call", [{"to": contract, "data": data}, "latest"])
@@ -96,7 +96,6 @@ def get_spl_token_balance(owner: str, mint: str) -> float:
 
 # ================= LTC / DOGE (BlockCypher) =================
 def get_blockcypher_balance(symbol: str, address: str) -> float:
-    # symbol: "ltc", "doge"
     data = safe_get_json(f"https://api.blockcypher.com/v1/{symbol}/main/addrs/{address}/balance")
     return data["final_balance"] / SATOSHI_PER_BTC
 
@@ -115,7 +114,7 @@ def get_xlm_balance(address: str) -> float:
             return float(b["balance"])
     return 0.0
 
-# ================= BCH (Fullstack.cash – version that worked) =================
+# ================= BCH =================
 def get_bch_balance(address: str) -> float:
     cashaddr = address.replace("bitcoincash:", "")
     candidates = [cashaddr, f"bitcoincash:{cashaddr}"]
@@ -164,21 +163,21 @@ def get_trc20_balance(address: str, contract: str, decimals: int) -> float:
 
 # ================= Addresses =================
 ADDR = {
-    "BTC":      "14dJRoKyj2i83uRbTUeKqhFMwvFZcpiXyn",
-    "ETH":      "0xd4BDDf5E3D0435D7A6214A0B949C7BB58621F37C",
-    "SOL":      "FLgJwoX3pPye21UuenU9urrSHRZTNCX8R6fsfSfCX5T9",
-    "LTC":      "LehGWLyxu6UHG81Ue7XNoHSJnJ4uDkQkHb",
-    "DOGE":     "DJ7DymrXjniEdR5hhgTifoVn6NSWJySAvr",
-    "BCH":      "bitcoincash:qrhzxk90l59ryl08sxcsxjnrg8j6awsxq5xnwhvp44",
-    "XRP":      "r4ep6pSY9JhMhLHGFb5GtVabzS1KvihiZP",
-    "XLM":      "GBFVU7QY6EMTYSF3WKH54CO5CE46BC72HOKZBBXH5YBJBLDVT3RNSNM2",
+    "BTC": "14dJRoKyj2i83uRbTUeKqhFMwvFZcpiXyn",
+    "ETH": "0xd4BDDf5E3D0435D7A6214A0B949C7BB58621F37C",
+    "SOL": "FLgJwoX3pPye21UuenU9urrSHRZTNCX8R6fsfSfCX5T9",
+    "LTC": "LehGWLyxu6UHG81Ue7XNoHSJnJ4uDkQkHb",
+    "DOGE": "DJ7DymrXjniEdR5hhgTifoVn6NSWJySAvr",
+    "BCH": "bitcoincash:qrhzxk90l59ryl08sxcsxjnrg8j6awsxq5xnwhvp44",
+    "XRP": "r4ep6pSY9JhMhLHGFb5GtVabzS1KvihiZP",
+    "XLM": "GBFVU7QY6EMTYSF3WKH54CO5CE46BC72HOKZBBXH5YBJBLDVT3RNSNM2",
     "TRX_USDT": "TTEkaSQfTDQbDcTVpDCTTFiW5MSFEfQgXA",
 }
 
 ERC20 = {
     "USDT(ERC)": {"contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7", "decimals": 6},
     "USDC(ERC)": {"contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "decimals": 6},
-    "DAI":       {"contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "decimals": 18},
+    "DAI": {"contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "decimals": 18},
 }
 
 SPL = {
@@ -204,30 +203,41 @@ def main():
         except Exception:
             results[symbol] = 0.0
 
-    safe_run("BTC",       lambda: get_btc_balance(ADDR["BTC"]))
-    safe_run("ETH",       lambda: get_eth_balance(ADDR["ETH"]))
-    safe_run("SOL",       lambda: get_sol_balance(ADDR["SOL"]))
-    safe_run("USDC_SOL",  lambda: get_spl_token_balance(ADDR["SOL"], SPL["USDC_SOL"]["mint"]))
-    safe_run("LTC",       lambda: get_blockcypher_balance("ltc", ADDR["LTC"]))
-    safe_run("DOGE",      lambda: get_blockcypher_balance("doge", ADDR["DOGE"]))
-    safe_run("BCH",       lambda: get_bch_balance(ADDR["BCH"]))
-    safe_run("XRP",       lambda: get_xrp_balance(ADDR["XRP"]))
-    safe_run("XLM",       lambda: get_xlm_balance(ADDR["XLM"]))
-    safe_run("USDT_TRC20", lambda: get_trc20_balance(
+    safe_run("BTC", lambda: get_btc_balance(ADDR["BTC"]))
+    safe_run("ETH", lambda: get_eth_balance(ADDR["ETH"]))
+    safe_run("SOL", lambda: get_sol_balance(ADDR["SOL"]))
+    safe_run("LTC", lambda: get_blockcypher_balance("ltc", ADDR["LTC"]))
+    safe_run("XRP", lambda: get_xrp_balance(ADDR["XRP"]))
+    safe_run("XLM", lambda: get_xlm_balance(ADDR["XLM"]))
+    safe_run("USDT(TRC)", lambda: get_trc20_balance(
         ADDR["TRX_USDT"],
-        TRC20["USDT_TRC20"]["contract"],
-        TRC20["USDT_TRC20"]["decimals"]
+        TRC20["USDT(TRC)"]["contract"],
+        TRC20["USDT(TRC)"]["decimals"]
     ))
+    safe_run("USDC(SOL)", lambda: get_spl_token_balance(
+        ADDR["SOL"],
+        SPL["USDC(SOL)"]["mint"]
+    ))
+    safe_run("BCH", lambda: get_bch_balance(ADDR["BCH"]))
+    safe_run("DOGE", lambda: get_blockcypher_balance("doge", ADDR["DOGE"]))
 
     for sym, meta in ERC20.items():
         safe_run(sym, lambda m=meta: get_erc20_balance(ADDR["ETH"], m["contract"], m["decimals"]))
 
     order = [
-        "BTC", "ETH", "SOL", "USDC_SOL",
-        "LTC", "XRP", "XLM",
-        "USDT", "USDC", "DAI",
-        "USDT_TRC20",
-        "BCH", "DOGE"
+        "BTC",
+        "ETH",
+        "SOL",
+        "LTC",
+        "XRP",
+        "XLM",
+        "USDT(ERC)",
+        "USDT(TRC)",
+        "USDC(ERC)",
+        "USDC(SOL)",
+        "DAI",
+        "BCH",
+        "DOGE"
     ]
 
     lines = [f"{t} {results[t]:,.4f}" for t in order]
