@@ -75,6 +75,26 @@ def get_sol_balance(address: str) -> float:
     return out["result"]["value"] / 1e9
 
 # ================= SPL Tokens (Solana) =================
+SOLANA_RPCS = [
+    "https://api.mainnet-beta.solana.com",
+    "https://solana-mainnet.g.alchemy.com/v2/demo",
+]
+
+def sol_rpc_call(payload: dict):
+    last_err = None
+    for rpc in SOLANA_RPCS:
+        try:
+            out = safe_post_json(rpc, payload, timeout=25)
+            if "error" in out:
+                last_err = out["error"]
+                time.sleep(0.25)
+                continue
+            return out
+        except Exception as e:
+            last_err = str(e)
+            time.sleep(0.25)
+    raise RuntimeError(f"All SOL RPCs failed. Last error: {last_err}")
+
 def get_spl_token_balance(owner: str, mint: str) -> float:
     payload = {
         "jsonrpc": "2.0",
@@ -86,12 +106,14 @@ def get_spl_token_balance(owner: str, mint: str) -> float:
             {"encoding": "jsonParsed"}
         ]
     }
-    out = safe_post_json("https://api.mainnet-beta.solana.com", payload, timeout=25)
+
+    out = sol_rpc_call(payload)
 
     total = 0.0
     for acc in out["result"]["value"]:
-        amt = acc["account"]["data"]["parsed"]["info"]["tokenAmount"]["uiAmount"]
-        total += amt or 0.0
+        token_amount = acc["account"]["data"]["parsed"]["info"]["tokenAmount"]
+        total += float(token_amount["uiAmount"] or 0.0)
+
     return total
 
 # ================= LTC / DOGE (BlockCypher) =================
@@ -134,29 +156,50 @@ def get_bch_balance(address: str) -> float:
     raise RuntimeError(f"Unexpected BCH response: {last}")
 
 # ================= TRON / TRC20 =================
-def tron_hex_address(base58_address: str) -> str:
-    payload = {"address": base58_address, "visible": True}
-    out = safe_post_json("https://api.trongrid.io/wallet/validateaddress", payload, timeout=25)
-    if not out.get("result"):
-        raise RuntimeError(f"Invalid TRON address: {base58_address}")
-    return out["address"]
+B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+def b58decode_check(s: str) -> bytes:
+    num = 0
+    for char in s:
+        num = num * 58 + B58_ALPHABET.index(char)
+    combined = num.to_bytes((num.bit_length() + 7) // 8, byteorder="big")
+
+    # restore leading zero bytes
+    n_pad = 0
+    for c in s:
+        if c == "1":
+            n_pad += 1
+        else:
+            break
+    combined = b"\x00" * n_pad + combined
+
+    # strip 4-byte checksum
+    return combined[:-4]
+
+def tron_base58_to_hex(addr: str) -> str:
+    return b58decode_check(addr).hex()
 
 def get_trc20_balance(address: str, contract: str, decimals: int) -> float:
-    owner_hex = tron_hex_address(address)
+    owner_hex = tron_base58_to_hex(address)
+    contract_hex = tron_base58_to_hex(contract)
 
     payload = {
         "owner_address": owner_hex,
-        "contract_address": contract,
+        "contract_address": contract_hex,
         "function_selector": "balanceOf(address)",
         "parameter": owner_hex[2:].rjust(64, "0"),
         "visible": False
     }
 
-    out = safe_post_json("https://api.trongrid.io/wallet/triggerconstantcontract", payload, timeout=25)
+    out = safe_post_json(
+        "https://api.trongrid.io/wallet/triggerconstantcontract",
+        payload,
+        timeout=25
+    )
 
     result = out.get("constant_result", [])
     if not result:
-        return 0.0
+        raise RuntimeError(f"Unexpected TRON response: {out}")
 
     raw = int(result[0], 16)
     return raw / (10 ** decimals)
