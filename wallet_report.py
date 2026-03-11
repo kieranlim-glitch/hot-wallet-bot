@@ -240,7 +240,7 @@ def main():
         "DOGE"
     ]
 
-    lines = [f"{t} {results[t]:,.4f}" for t in order]
+    lines = [f"{t:<10} {results[t]:>15,.4f}" for t in order]
 
     msg = "*Hot wallet balances*\n```" + "\n".join(lines) + "```"
     post_to_slack(msg)
