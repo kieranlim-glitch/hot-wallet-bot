@@ -225,7 +225,7 @@ ERC20 = {
 
 SPL = {
     "USDC(SOL)": {
-        "mint": "EPjFWdd5AufqSSqeM2q8ZtYc9x6rJp1Kp9Y1sC3yR9k"
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
     }
 }
 
