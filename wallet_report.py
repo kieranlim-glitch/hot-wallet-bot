@@ -74,6 +74,26 @@ def get_sol_balance(address: str) -> float:
     out = safe_post_json("https://api.mainnet-beta.solana.com", payload, timeout=25)
     return out["result"]["value"] / 1e9
 
+# ================= SPL Tokens (Solana) =================
+def get_spl_token_balance(owner: str, mint: str) -> float:
+    payload = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "getTokenAccountsByOwner",
+        "params": [
+            owner,
+            {"mint": mint},
+            {"encoding": "jsonParsed"}
+        ]
+    }
+    out = safe_post_json("https://api.mainnet-beta.solana.com", payload, timeout=25)
+
+    total = 0.0
+    for acc in out["result"]["value"]:
+        amt = acc["account"]["data"]["parsed"]["info"]["tokenAmount"]["uiAmount"]
+        total += amt or 0.0
+    return total
+
 # ================= LTC / DOGE (BlockCypher) =================
 def get_blockcypher_balance(symbol: str, address: str) -> float:
     # symbol: "ltc", "doge"
@@ -114,22 +134,64 @@ def get_bch_balance(address: str) -> float:
 
     raise RuntimeError(f"Unexpected BCH response: {last}")
 
+# ================= TRON / TRC20 =================
+def tron_hex_address(base58_address: str) -> str:
+    payload = {"address": base58_address, "visible": True}
+    out = safe_post_json("https://api.trongrid.io/wallet/validateaddress", payload, timeout=25)
+    if not out.get("result"):
+        raise RuntimeError(f"Invalid TRON address: {base58_address}")
+    return out["address"]
+
+def get_trc20_balance(address: str, contract: str, decimals: int) -> float:
+    owner_hex = tron_hex_address(address)
+
+    payload = {
+        "owner_address": owner_hex,
+        "contract_address": contract,
+        "function_selector": "balanceOf(address)",
+        "parameter": owner_hex[2:].rjust(64, "0"),
+        "visible": False
+    }
+
+    out = safe_post_json("https://api.trongrid.io/wallet/triggerconstantcontract", payload, timeout=25)
+
+    result = out.get("constant_result", [])
+    if not result:
+        return 0.0
+
+    raw = int(result[0], 16)
+    return raw / (10 ** decimals)
+
 # ================= Addresses =================
 ADDR = {
-    "BTC":  "14dJRoKyj2i83uRbTUeKqhFMwvFZcpiXyn",
-    "ETH":  "0xd4BDDf5E3D0435D7A6214A0B949C7BB58621F37C",
-    "SOL":  "FLgJwoX3pPye21UuenU9urrSHRZTNCX8R6fsfSfCX5T9",
-    "LTC":  "LehGWLyxu6UHG81Ue7XNoHSJnJ4uDkQkHb",
-    "DOGE": "DJ7DymrXjniEdR5hhgTifoVn6NSWJySAvr",
-    "BCH":  "bitcoincash:qrhzxk90l59ryl08sxcsxjnrg8j6awsxq5xnwhvp44",
-    "XRP":  "r4ep6pSY9JhMhLHGFb5GtVabzS1KvihiZP",
-    "XLM":  "GBFVU7QY6EMTYSF3WKH54CO5CE46BC72HOKZBBXH5YBJBLDVT3RNSNM2",
+    "BTC":      "14dJRoKyj2i83uRbTUeKqhFMwvFZcpiXyn",
+    "ETH":      "0xd4BDDf5E3D0435D7A6214A0B949C7BB58621F37C",
+    "SOL":      "FLgJwoX3pPye21UuenU9urrSHRZTNCX8R6fsfSfCX5T9",
+    "LTC":      "LehGWLyxu6UHG81Ue7XNoHSJnJ4uDkQkHb",
+    "DOGE":     "DJ7DymrXjniEdR5hhgTifoVn6NSWJySAvr",
+    "BCH":      "bitcoincash:qrhzxk90l59ryl08sxcsxjnrg8j6awsxq5xnwhvp44",
+    "XRP":      "r4ep6pSY9JhMhLHGFb5GtVabzS1KvihiZP",
+    "XLM":      "GBFVU7QY6EMTYSF3WKH54CO5CE46BC72HOKZBBXH5YBJBLDVT3RNSNM2",
+    "TRX_USDT": "TTEkaSQfTDQbDcTVpDCTTFiW5MSFEfQgXA",
 }
 
 ERC20 = {
     "USDT": {"contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7", "decimals": 6},
     "USDC": {"contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "decimals": 6},
     "DAI":  {"contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "decimals": 18},
+}
+
+SPL = {
+    "USDC_SOL": {
+        "mint": "EPjFWdd5AufqSSqeM2q8ZtYc9x6rJp1Kp9Y1sC3yR9k"
+    }
+}
+
+TRC20 = {
+    "USDT_TRC20": {
+        "contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+        "decimals": 6
+    }
 }
 
 # ================= Main =================
@@ -142,19 +204,32 @@ def main():
         except Exception:
             results[symbol] = 0.0
 
-    safe_run("BTC",  lambda: get_btc_balance(ADDR["BTC"]))
-    safe_run("ETH",  lambda: get_eth_balance(ADDR["ETH"]))
-    safe_run("SOL",  lambda: get_sol_balance(ADDR["SOL"]))
-    safe_run("LTC",  lambda: get_blockcypher_balance("ltc", ADDR["LTC"]))
-    safe_run("DOGE", lambda: get_blockcypher_balance("doge", ADDR["DOGE"]))
-    safe_run("BCH",  lambda: get_bch_balance(ADDR["BCH"]))
-    safe_run("XRP",  lambda: get_xrp_balance(ADDR["XRP"]))
-    safe_run("XLM",  lambda: get_xlm_balance(ADDR["XLM"]))
+    safe_run("BTC",       lambda: get_btc_balance(ADDR["BTC"]))
+    safe_run("ETH",       lambda: get_eth_balance(ADDR["ETH"]))
+    safe_run("SOL",       lambda: get_sol_balance(ADDR["SOL"]))
+    safe_run("USDC_SOL",  lambda: get_spl_token_balance(ADDR["SOL"], SPL["USDC_SOL"]["mint"]))
+    safe_run("LTC",       lambda: get_blockcypher_balance("ltc", ADDR["LTC"]))
+    safe_run("DOGE",      lambda: get_blockcypher_balance("doge", ADDR["DOGE"]))
+    safe_run("BCH",       lambda: get_bch_balance(ADDR["BCH"]))
+    safe_run("XRP",       lambda: get_xrp_balance(ADDR["XRP"]))
+    safe_run("XLM",       lambda: get_xlm_balance(ADDR["XLM"]))
+    safe_run("USDT_TRC20", lambda: get_trc20_balance(
+        ADDR["TRX_USDT"],
+        TRC20["USDT_TRC20"]["contract"],
+        TRC20["USDT_TRC20"]["decimals"]
+    ))
 
     for sym, meta in ERC20.items():
         safe_run(sym, lambda m=meta: get_erc20_balance(ADDR["ETH"], m["contract"], m["decimals"]))
 
-    order = ["BTC","ETH","SOL","LTC","XRP","XLM","USDT","USDC","DAI","BCH","DOGE"]
+    order = [
+        "BTC", "ETH", "SOL", "USDC_SOL",
+        "LTC", "XRP", "XLM",
+        "USDT", "USDC", "DAI",
+        "USDT_TRC20",
+        "BCH", "DOGE"
+    ]
+
     lines = [f"{t} {results[t]:,.4f}" for t in order]
 
     msg = "*Hot wallet balances*\n```" + "\n".join(lines) + "```"
