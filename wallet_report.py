@@ -176,19 +176,19 @@ ADDR = {
 }
 
 ERC20 = {
-    "USDT": {"contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7", "decimals": 6},
-    "USDC": {"contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "decimals": 6},
-    "DAI":  {"contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "decimals": 18},
+    "USDT(ERC)": {"contract": "0xdAC17F958D2ee523a2206206994597C13D831ec7", "decimals": 6},
+    "USDC(ERC)": {"contract": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", "decimals": 6},
+    "DAI":       {"contract": "0x6B175474E89094C44Da98b954EedeAC495271d0F", "decimals": 18},
 }
 
 SPL = {
-    "USDC_SOL": {
+    "USDC(SOL)": {
         "mint": "EPjFWdd5AufqSSqeM2q8ZtYc9x6rJp1Kp9Y1sC3yR9k"
     }
 }
 
 TRC20 = {
-    "USDT_TRC20": {
+    "USDT(TRC)": {
         "contract": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
         "decimals": 6
     }
