@@ -122,10 +122,8 @@ def get_xlm_balance(address: str) -> float:
 
 def get_bch_balance(address: str) -> float:
     addr = address.replace("bitcoincash:", "")
-    data = safe_get_json(f"https://api.blockchair.com/bitcoin-cash/dashboards/address/{addr}")
-    print(f"[BCH DEBUG] raw response: {data}")  # ← add this
-    stats = list(data["data"].values())[0]["address"]
-    return stats["balance"] / SATOSHI_PER_BTC
+    data = safe_get_json(f"https://api.haskoin.com/bch/address/{addr}/balance")
+    return data["confirmed"] / SATOSHI_PER_BTC
 
 B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
