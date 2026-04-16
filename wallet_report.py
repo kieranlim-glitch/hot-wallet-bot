@@ -138,8 +138,11 @@ def get_xlm_balance(address: str) -> float:
 
 # ================= BCH =================
 def get_bch_balance(address: str) -> float:
-    cashaddr = address.replace("bitcoincash:", "")
-    candidates = [cashaddr, f"bitcoincash:{cashaddr}"]
+    # Normalize: strip prefix for Blockchair
+    addr = address.replace("bitcoincash:", "")
+    data = safe_get_json(f"https://api.blockchair.com/bitcoin-cash/dashboards/address/{addr}")
+    stats = data["data"][addr]["address"]
+    return (stats["balance"]) / SATOSHI_PER_BTC
 
     last = None
     for a in candidates:
@@ -230,10 +233,11 @@ def main():
     results = {}
 
     def safe_run(symbol, fn):
-        try:
-            results[symbol] = fn()
-        except Exception:
-            results[symbol] = 0.0
+    try:
+        results[symbol] = fn()
+    except Exception as e:
+        print(f"[ERROR] {symbol}: {e}")  # ← add this line
+        results[symbol] = 0.0
 
     safe_run("BTC", lambda: get_btc_balance(ADDR["BTC"]))
     safe_run("ETH", lambda: get_eth_balance(ADDR["ETH"]))
