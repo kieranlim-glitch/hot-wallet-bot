@@ -232,11 +232,11 @@ ERC20 = {
 def main():
     results = {}
 
-    def safe_run(symbol, fn):
+def safe_run(symbol, fn):
     try:
         results[symbol] = fn()
     except Exception as e:
-        print(f"[ERROR] {symbol}: {e}")  # ← add this line
+        print(f"[ERROR] {symbol}: {e}")
         results[symbol] = 0.0
 
     safe_run("BTC", lambda: get_btc_balance(ADDR["BTC"]))
