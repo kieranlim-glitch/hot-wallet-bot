@@ -115,13 +115,34 @@ def get_spl_token_balance(owner: str, mint: str) -> float:
         total += float(token_amount["uiAmount"] or 0.0)
     return total
 
-# ── LTC (changed: litecoinspace.org instead of BlockCypher) ───────────────────
+# ── LTC (multi-source fallback) ───────────────────────────────────────────────
 
 def get_ltc_balance(address: str) -> float:
-    data = safe_get_json(f"https://litecoinspace.org/api/address/{address}")
-    funded = data["chain_stats"]["funded_txo_sum"]
-    spent  = data["chain_stats"]["spent_txo_sum"]
-    return (funded - spent) / SATOSHI_PER_BTC  # 1 LTC = 100_000_000 litoshis
+    """
+    Tries three LTC APIs in order:
+      1. litecoinspace.org  – same structure as blockstream (preferred)
+      2. Blockchair         – reliable, generous free tier
+      3. BlockCypher        – last resort; rate-limits under high call volume
+    """
+    # 1. litecoinspace.org (original)
+    try:
+        data = safe_get_json(f"https://litecoinspace.org/api/address/{address}")
+        funded = data["chain_stats"]["funded_txo_sum"]
+        spent  = data["chain_stats"]["spent_txo_sum"]
+        return (funded - spent) / SATOSHI_PER_BTC
+    except Exception:
+        pass
+
+    # 2. Blockchair — returns balance in litoshis under data[addr].address.balance
+    try:
+        data = safe_get_json(f"https://api.blockchair.com/litecoin/dashboards/address/{address}")
+        litoshis = data["data"][address]["address"]["balance"]
+        return litoshis / SATOSHI_PER_BTC
+    except Exception:
+        pass
+
+    # 3. BlockCypher — already used for DOGE; fine as an occasional fallback
+    return get_blockcypher_balance("ltc", address)
 
 # ── DOGE (BlockCypher kept — only one call, less likely to be rate-limited) ───
 
