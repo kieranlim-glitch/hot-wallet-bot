@@ -34,7 +34,31 @@ def safe_post_json(url, payload, timeout=25):
 # ── BTC ──────────────────────────────────────────────────────────────────────
 
 def get_btc_balance(address: str) -> float:
-    data = safe_get_json(f"https://blockstream.info/api/address/{address}")
+    """
+    Tries three BTC APIs in order:
+      1. blockstream.info  – original, preferred
+      2. Blockchair        – reliable free tier, same satoshi structure
+      3. mempool.space     – final fallback, identical API shape to blockstream
+    """
+    # 1. blockstream.info (original)
+    try:
+        data = safe_get_json(f"https://blockstream.info/api/address/{address}")
+        funded = data["chain_stats"]["funded_txo_sum"]
+        spent  = data["chain_stats"]["spent_txo_sum"]
+        return (funded - spent) / SATOSHI_PER_BTC
+    except Exception:
+        pass
+
+    # 2. Blockchair
+    try:
+        data = safe_get_json(f"https://api.blockchair.com/bitcoin/dashboards/address/{address}")
+        satoshis = data["data"][address]["address"]["balance"]
+        return satoshis / SATOSHI_PER_BTC
+    except Exception:
+        pass
+
+    # 3. mempool.space — identical JSON shape to blockstream
+    data = safe_get_json(f"https://mempool.space/api/address/{address}")
     funded = data["chain_stats"]["funded_txo_sum"]
     spent  = data["chain_stats"]["spent_txo_sum"]
     return (funded - spent) / SATOSHI_PER_BTC
