@@ -195,10 +195,10 @@ def get_xlm_balance(address: str) -> float:
 
 def get_bch_balance(address: str) -> float:
     """
-    Tries two BCH APIs in order:
-      1. Blockchair (bitcoin-cash)
-      2. api.haskoin.com (fallback; known to be 404ing as of Aug 2026)
-    Raises a combined error if both fail, so the real cause isn't hidden.
+    Tries three BCH sources in order:
+      1. Blockchair (bitcoin-cash)     – can 430 on shared GitHub Actions IPs
+      2. bchn.fullstack.cash           – keyless free tier, Electrum-based
+      3. api.haskoin.com               – kept as last resort; currently 404ing
     """
     addr = address.replace("bitcoincash:", "")
     errs = []
@@ -211,13 +211,19 @@ def get_bch_balance(address: str) -> float:
         errs.append(f"Blockchair: {e}")
 
     try:
+        data = safe_get_json(f"https://bchn.fullstack.cash/v5/electrumx/balance/bitcoincash:{addr}")
+        bal = data["balance"]
+        return (bal["confirmed"] + bal["unconfirmed"]) / SATOSHI_PER_BTC
+    except Exception as e:
+        errs.append(f"FullStack.cash: {e}")
+
+    try:
         data = safe_get_json(f"https://api.haskoin.com/bch/address/{addr}/balance")
         return data["confirmed"] / SATOSHI_PER_BTC
     except Exception as e:
         errs.append(f"Haskoin: {e}")
 
     raise RuntimeError(" | ".join(errs))
-
 # ── TRON / TRC-20 ────────────────────────────────────────────────────────────
 
 B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
