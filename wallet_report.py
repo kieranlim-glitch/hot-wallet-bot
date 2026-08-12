@@ -196,24 +196,27 @@ def get_xlm_balance(address: str) -> float:
 def get_bch_balance(address: str) -> float:
     """
     Tries two BCH APIs in order:
-      1. Blockchair (bitcoin-cash)  – reliable, same shape as BTC/LTC fallback
-      2. api.haskoin.com            – kept as fallback; currently 404ing site-wide
-                                       (Haskoin Store looks unmaintained), so treat
-                                       any success here as a bonus, not the primary path
+      1. Blockchair (bitcoin-cash)
+      2. api.haskoin.com (fallback; known to be 404ing as of Aug 2026)
+    Raises a combined error if both fail, so the real cause isn't hidden.
     """
     addr = address.replace("bitcoincash:", "")
+    errs = []
 
-    # 1. Blockchair — returns balance in satoshis under data[addr].address.balance
     try:
         data = safe_get_json(f"https://api.blockchair.com/bitcoin-cash/dashboards/address/{addr}")
         satoshis = data["data"][addr]["address"]["balance"]
         return satoshis / SATOSHI_PER_BTC
-    except Exception:
-        pass
+    except Exception as e:
+        errs.append(f"Blockchair: {e}")
 
-    # 2. api.haskoin.com — last resort
-    data = safe_get_json(f"https://api.haskoin.com/bch/address/{addr}/balance")
-    return data["confirmed"] / SATOSHI_PER_BTC
+    try:
+        data = safe_get_json(f"https://api.haskoin.com/bch/address/{addr}/balance")
+        return data["confirmed"] / SATOSHI_PER_BTC
+    except Exception as e:
+        errs.append(f"Haskoin: {e}")
+
+    raise RuntimeError(" | ".join(errs))
 
 # ── TRON / TRC-20 ────────────────────────────────────────────────────────────
 
