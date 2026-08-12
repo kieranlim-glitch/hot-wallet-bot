@@ -193,15 +193,100 @@ def get_xlm_balance(address: str) -> float:
 
 # ── BCH ──────────────────────────────────────────────────────────────────────
 
+CASHADDR_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+
+def _polymod(values):
+    c = 1
+    for d in values:
+        c0 = c >> 35
+        c = ((c & 0x07ffffffff) << 5) ^ d
+        if c0 & 0x01: c ^= 0x98f2bc8e61
+        if c0 & 0x02: c ^= 0x79b76d99e2
+        if c0 & 0x04: c ^= 0xf33e5fb3c4
+        if c0 & 0x08: c ^= 0xae2eabe2a8
+        if c0 & 0x10: c ^= 0x1e4f43e470
+    return c ^ 1
+
+def _convertbits(data, frombits, tobits, pad=True):
+    acc, bits, ret = 0, 0, []
+    maxv = (1 << tobits) - 1
+    max_acc = (1 << (frombits + tobits - 1)) - 1
+    for value in data:
+        acc = ((acc << frombits) | value) & max_acc
+        bits += frombits
+        while bits >= tobits:
+            bits -= tobits
+            ret.append((acc >> bits) & maxv)
+    if pad and bits:
+        ret.append((acc << (tobits - bits)) & maxv)
+    return ret
+
+def cashaddr_to_hash160(addr: str) -> bytes:
+    prefix = "bitcoincash"
+    payload_str = addr.split(":")[-1].lower()
+    payload = [CASHADDR_CHARSET.index(c) for c in payload_str]
+    check_input = [ord(x) & 0x1f for x in prefix] + [0] + payload
+    if _polymod(check_input) != 0:
+        raise ValueError("Bad CashAddr checksum")
+    data = _convertbits(payload[:-8], 5, 8, False)
+    return bytes(data[1:])  # drop version byte, keep hash160
+
+def bch_scripthash(hash160: bytes) -> str:
+    script = bytes([0x76, 0xa9, 0x14]) + hash160 + bytes([0x88, 0xac])  # P2PKH
+    digest = hashlib.sha256(script).digest()
+    return digest[::-1].hex()  # Electrum protocol wants byte-reversed hex
+
+ELECTRUM_SERVERS = [
+    ("electrum.imaginary.cash", 50002),
+    ("bch.loping.net", 50002),
+    ("electroncash.dk", 50002),
+]
+
+def electrum_request(scripthash: str) -> dict:
+    payload = json.dumps({
+        "id": 1, "method": "blockchain.scripthash.get_balance", "params": [scripthash]
+    }) + "\n"
+    last_err = None
+    for host, port in ELECTRUM_SERVERS:
+        try:
+            ctx = ssl.create_default_context()
+            with socket.create_connection((host, port), timeout=10) as sock:
+                with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                    ssock.sendall(payload.encode())
+                    data = b""
+                    while not data.endswith(b"\n"):
+                        chunk = ssock.recv(4096)
+                        if not chunk:
+                            break
+                        data += chunk
+                    return json.loads(data.decode())
+        except Exception as e:
+            last_err = str(e)
+    raise RuntimeError(f"All Electrum servers failed. Last error: {last_err}")
+
+def get_bch_balance_electrum(address: str) -> float:
+    hash160 = cashaddr_to_hash160(address)
+    scripthash = bch_scripthash(hash160)
+    out = electrum_request(scripthash)
+    result = out.get("result")
+    if result is None:
+        raise RuntimeError(f"Unexpected Electrum response: {out}")
+    return (result["confirmed"] + result["unconfirmed"]) / SATOSHI_PER_BTC
+
 def get_bch_balance(address: str) -> float:
     """
     Tries three BCH sources in order:
-      1. Blockchair (bitcoin-cash)     – can 430 on shared GitHub Actions IPs
-      2. bchn.fullstack.cash           – keyless free tier, Electrum-based
-      3. api.haskoin.com               – kept as last resort; currently 404ing
+      1. Electrum-Cash protocol – direct socket, no key, no HTTP rate limits
+      2. Blockchair              – may 430 on shared CI IPs
+      3. api.haskoin.com         – last resort; currently 404ing
     """
     addr = address.replace("bitcoincash:", "")
     errs = []
+
+    try:
+        return get_bch_balance_electrum(address)
+    except Exception as e:
+        errs.append(f"Electrum: {e}")
 
     try:
         data = safe_get_json(f"https://api.blockchair.com/bitcoin-cash/dashboards/address/{addr}")
@@ -209,13 +294,6 @@ def get_bch_balance(address: str) -> float:
         return satoshis / SATOSHI_PER_BTC
     except Exception as e:
         errs.append(f"Blockchair: {e}")
-
-    try:
-        data = safe_get_json(f"https://bchn.fullstack.cash/v5/electrumx/balance/bitcoincash:{addr}")
-        bal = data["balance"]
-        return (bal["confirmed"] + bal["unconfirmed"]) / SATOSHI_PER_BTC
-    except Exception as e:
-        errs.append(f"FullStack.cash: {e}")
 
     try:
         data = safe_get_json(f"https://api.haskoin.com/bch/address/{addr}/balance")
