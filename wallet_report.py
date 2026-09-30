@@ -1,7 +1,8 @@
-
-# Two changes from your original:
-# 1. LTC now uses litecoinspace.org instead of BlockCypher (which rate-limits and silently fails)
-# 2. Errors are posted to Slack instead of only printed to stdout
+"""
+Hot wallet balance report.
+Fetches hot wallet balances from public blockchain APIs and posts a table
+to Slack. Any asset that fails shows as ERROR, with the error listed below.
+"""
 
 import os
 import time
@@ -40,11 +41,11 @@ def safe_post_json(url, payload, timeout=25):
 def get_btc_balance(address: str) -> float:
     """
     Tries three BTC APIs in order:
-      1. blockstream.info  – original, preferred
+      1. blockstream.info  – preferred
       2. Blockchair        – reliable free tier, same satoshi structure
       3. mempool.space     – final fallback, identical API shape to blockstream
     """
-    # 1. blockstream.info (original)
+    # 1. blockstream.info
     try:
         data = safe_get_json(f"https://blockstream.info/api/address/{address}")
         funded = data["chain_stats"]["funded_txo_sum"]
@@ -103,7 +104,7 @@ def get_erc20_balance(address: str, contract: str, decimals: int) -> float:
     res = eth_rpc_call("eth_call", [{"to": contract, "data": data}, "latest"])
     return int(res, 16) / (10 ** decimals)
 
-# ── SOL / SPL ─────────────────────────────────────────────────────────────────
+# ── SOL ──────────────────────────────────────────────────────────────────────
 
 SOLANA_RPCS = [
     "https://api.mainnet-beta.solana.com",
@@ -130,19 +131,6 @@ def get_sol_balance(address: str) -> float:
     out = sol_rpc_call(payload)
     return out["result"]["value"] / 1e9
 
-def get_spl_token_balance(owner: str, mint: str) -> float:
-    payload = {
-        "jsonrpc": "2.0", "id": 1,
-        "method": "getTokenAccountsByOwner",
-        "params": [owner, {"mint": mint}, {"encoding": "jsonParsed"}]
-    }
-    out = sol_rpc_call(payload)
-    total = 0.0
-    for acc in out["result"]["value"]:
-        token_amount = acc["account"]["data"]["parsed"]["info"]["tokenAmount"]
-        total += float(token_amount["uiAmount"] or 0.0)
-    return total
-
 # ── LTC (multi-source fallback) ───────────────────────────────────────────────
 
 def get_ltc_balance(address: str) -> float:
@@ -152,7 +140,7 @@ def get_ltc_balance(address: str) -> float:
       2. Blockchair         – reliable, generous free tier
       3. BlockCypher        – last resort; rate-limits under high call volume
     """
-    # 1. litecoinspace.org (original)
+    # 1. litecoinspace.org
     try:
         data = safe_get_json(f"https://litecoinspace.org/api/address/{address}")
         funded = data["chain_stats"]["funded_txo_sum"]
@@ -169,10 +157,10 @@ def get_ltc_balance(address: str) -> float:
     except Exception:
         pass
 
-    # 3. BlockCypher — already used for DOGE; fine as an occasional fallback
+    # 3. BlockCypher — also used for DOGE; fine as an occasional fallback
     return get_blockcypher_balance("ltc", address)
 
-# ── DOGE (BlockCypher kept — only one call, less likely to be rate-limited) ───
+# ── DOGE (BlockCypher — only one call, less likely to be rate-limited) ───────
 
 def get_blockcypher_balance(symbol: str, address: str) -> float:
     data = safe_get_json(f"https://api.blockcypher.com/v1/{symbol}/main/addrs/{address}/balance")
@@ -282,7 +270,7 @@ def get_bch_balance(address: str) -> float:
     Tries three BCH sources in order:
       1. Electrum-Cash protocol – direct socket, no key, no HTTP rate limits
       2. Blockchair              – may 430 on shared CI IPs
-      3. api.haskoin.com         – last resort; currently 404ing
+      3. api.haskoin.com         – last resort
     """
     addr = address.replace("bitcoincash:", "")
     errs = []
@@ -306,42 +294,6 @@ def get_bch_balance(address: str) -> float:
         errs.append(f"Haskoin: {e}")
 
     raise RuntimeError(" | ".join(errs))
-# ── TRON / TRC-20 ────────────────────────────────────────────────────────────
-
-B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-
-def b58decode_check(s: str) -> bytes:
-    num = 0
-    for char in s:
-        num = num * 58 + B58_ALPHABET.index(char)
-    combined = num.to_bytes((num.bit_length() + 7) // 8, byteorder="big")
-    n_pad = 0
-    for c in s:
-        if c == "1":
-            n_pad += 1
-        else:
-            break
-    combined = b"\x00" * n_pad + combined
-    return combined[:-4]
-
-def tron_base58_to_hex(addr: str) -> str:
-    return b58decode_check(addr).hex()
-
-def get_trc20_balance(address: str, contract: str, decimals: int) -> float:
-    owner_hex    = tron_base58_to_hex(address)
-    contract_hex = tron_base58_to_hex(contract)
-    payload = {
-        "owner_address":    owner_hex,
-        "contract_address": contract_hex,
-        "function_selector": "balanceOf(address)",
-        "parameter": owner_hex[2:].rjust(64, "0"),
-        "visible": False
-    }
-    out = safe_post_json("https://api.trongrid.io/wallet/triggerconstantcontract", payload, timeout=25)
-    result = out.get("constant_result", [])
-    if not result:
-        raise RuntimeError(f"Unexpected TRON response: {out}")
-    return int(result[0], 16) / (10 ** decimals)
 
 # ── Addresses & tokens ───────────────────────────────────────────────────────
 
@@ -378,7 +330,7 @@ def main():
     safe_run("BTC",  lambda: get_btc_balance(ADDR["BTC"]))
     safe_run("ETH",  lambda: get_eth_balance(ADDR["ETH"]))
     safe_run("SOL",  lambda: get_sol_balance(ADDR["SOL"]))
-    safe_run("LTC",  lambda: get_ltc_balance(ADDR["LTC"]))  # ← changed
+    safe_run("LTC",  lambda: get_ltc_balance(ADDR["LTC"]))
     safe_run("XRP",  lambda: get_xrp_balance(ADDR["XRP"]))
     safe_run("XLM",  lambda: get_xlm_balance(ADDR["XLM"]))
     safe_run("BCH",  lambda: get_bch_balance(ADDR["BCH"]))
@@ -395,7 +347,7 @@ def main():
     ]
     msg = "*Hot wallet balances*\n```" + "\n".join(lines) + "```"
 
-    # Append any fetch errors so they're visible in Slack (changed)
+    # Append any fetch errors so they're visible in Slack
     if errors:
         err_lines = "\n".join(f"• {sym}: {err}" for sym, err in errors.items())
         msg += f"\n\n:warning: *Fetch errors:*\n{err_lines}"
